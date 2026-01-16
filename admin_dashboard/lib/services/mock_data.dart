@@ -17,3 +17,20 @@ List<Order> mockOrders = [
   Order(id: 'O2', restaurantId: 'R2', driverId: '', customerName: 'Baatar', status: 'pending', totalPrice: 18000),
 ];
 
+class DriverStats {
+  final String name;
+  final int weekly;
+  final int monthly;
+
+  DriverStats({
+    required this.name,
+    required this.weekly,
+    required this.monthly,
+  });
+}
+
+final List<DriverStats> drivers = [
+  DriverStats(name: "Driver A", weekly: 25, monthly: 110),
+  DriverStats(name: "Driver B", weekly: 18, monthly: 85),
+  DriverStats(name: "Driver C", weekly: 32, monthly: 140),
+];
