@@ -21,15 +21,42 @@ class _RestaurantsPageState extends State<RestaurantsPage> {
     fetchRestaurants();
   }
 
+  // Admin token-ийг авах функц (SharedPreferences-аас эсвэл state management-аас авна)
+  Future<String?> getAdminToken() async {
+    // TODO: Энд админы token-ийг storage-аас авах
+    // Жишээ нь: SharedPreferences prefs = await SharedPreferences.getInstance();
+    // return prefs.getString('admin_token');
+    return 'YOUR_ADMIN_TOKEN_HERE'; // Үүнийг бодит token-оор солих
+  }
+
   Future<void> fetchRestaurants() async {
     try {
+      final token = await getAdminToken();
+      
+      if (token == null) {
+        setState(() {
+          errorMessage = 'Нэвтрэх шаардлагатай';
+          isLoading = false;
+        });
+        return;
+      }
+
       final response = await http.get(
-        Uri.parse('https://mubereats.onrender.com/api/restaurant/list/'),
+        Uri.parse('https://mubereats.onrender.com/api/admin/restaurants/'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
       );
 
       if (response.statusCode == 200) {
         setState(() {
           restaurants = json.decode(response.body);
+          isLoading = false;
+        });
+      } else if (response.statusCode == 401) {
+        setState(() {
+          errorMessage = 'Нэвтрэх эрх дууссан. Дахин нэвтэрнэ үү';
           isLoading = false;
         });
       } else {
@@ -43,6 +70,52 @@ class _RestaurantsPageState extends State<RestaurantsPage> {
         errorMessage = 'Холболт амжилтгүй: $e';
         isLoading = false;
       });
+    }
+  }
+
+  Future<void> approveRestaurant(int restaurantId) async {
+    try {
+      final token = await getAdminToken();
+      
+      if (token == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Нэвтрэх шаардлагатай')),
+        );
+        return;
+      }
+
+      final response = await http.post(
+        Uri.parse('https://mubereats.onrender.com/api/admin/approve/restaurant/$restaurantId/'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ресторан амжилттай зөвшөөрөгдлөө'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        fetchRestaurants(); // Жагсаалтыг шинэчлэх
+      } else {
+        final responseData = json.decode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(responseData['responseText'] ?? 'Алдаа гарлаа'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Алдаа: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -342,6 +415,7 @@ class _RestaurantsPageState extends State<RestaurantsPage> {
   Widget _buildRestaurantCard(Map<String, dynamic> restaurant) {
     final isActive = restaurant['status'] == 'active';
     final isOpen = restaurant['openNow'] ?? false;
+    final restaurantId = restaurant['resID'] ?? restaurant['id'];
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -372,7 +446,7 @@ class _RestaurantsPageState extends State<RestaurantsPage> {
                   children: [
                     // Зураг эсвэл avatar
                     Hero(
-                      tag: 'restaurant_${restaurant['resID']}',
+                      tag: 'restaurant_$restaurantId',
                       child: Container(
                         width: 75,
                         height: 75,
@@ -473,6 +547,37 @@ class _RestaurantsPageState extends State<RestaurantsPage> {
                         ],
                       ),
                     ),
+                    // Зөвшөөрөх товч (зөвхөн идэвхгүй бол)
+                    if (!isActive)
+                      IconButton(
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Ресторан зөвшөөрөх'),
+                              content: Text(
+                                '${restaurant['resName']} ресторанг зөвшөөрөх үү?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Болих'),
+                                ),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    approveRestaurant(restaurantId);
+                                  },
+                                  child: const Text('Зөвшөөрөх'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.check_circle_outline),
+                        color: Colors.green,
+                        tooltip: 'Зөвшөөрөх',
+                      ),
                   ],
                 ),
                 const SizedBox(height: 16),
